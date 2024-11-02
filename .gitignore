@@ -3,3 +3,6 @@
 
 # Do not ignore files in the root directory
 !/*.*
+
+# Allow the "Examples" directory
+!/Examples/

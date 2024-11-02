@@ -1,102 +1,128 @@
-﻿; Win + N (Open Notepad++)
-#n::
-    IfWinNotExist, AHK_EXE notepad++.exe
-    {
+﻿#Requires AutoHotkey v2.0+
+
+; Win + N (Open Notepad++)
+#n:: {
+    if !WinExist("ahk_exe notepad++.exe") {
         Run "C:\Program Files\Notepad++\notepad++.exe"
+        WinWait("ahk_exe notepad++.exe", , 10)  ; Wait for up to 10 seconds
+        WinActivate("ahk_exe notepad++.exe")
+    } else {
+        WinActivate("ahk_exe notepad++.exe")
     }
-    IfWinExist, AHK_EXE notepad++.exe
-    {
-        WinActivate AHK_EXE notepad++.exe
-    }
-    Return
+}
 
 ; Win + C (Open VSCode)
-#c::
-    IfWinNotExist, AHK_EXE code.exe
-    {
-        Run "C:\Users\Antho\AppData\Local\Programs\Microsoft VS Code\code.exe"
+#c:: {
+    if !WinExist("ahk_exe code.exe") {
+        Run "C:\Users\Anthon\AppData\Local\Programs\Microsoft VS Code\code.exe"
+        WinWait("ahk_exe code.exe", , 10)
+        WinActivate("ahk_exe code.exe")
+    } else {
+        WinActivate("ahk_exe code.exe")
     }
-    IfWinExist, AHK_EXE code.exe
-    {
-        WinActivate AHK_EXE code.exe
-    }
-    Return
+}
 
 ; Win + B (Open Git Bash)
-#b::
-    IfWinExist, ahk_class mintty
-    {
-        WinActivate
-    }
-    else
-    {
-        ; Otherwise, run a new instance
+#b:: {
+    if WinExist("ahk_class mintty") {
+        WinActivate()
+    } else {
         Run "C:\Program Files\Git\git-bash.exe"
-        WinWait, ahk_class mintty
-        WinActivate
+        WinWait("ahk_class mintty")
+        WinActivate("ahk_class mintty")
     }
-    Return
+}
 
 ; Win + F (Open Firefox)
-#f::
-    IfWinNotExist, AHK_EXE firefox.exe
-    {
+#f:: {
+    if !WinExist("ahk_exe firefox.exe") {
         Run "C:\Program Files\Mozilla Firefox\firefox.exe"
+        WinWait("ahk_exe firefox.exe", , 10)
+        WinActivate("ahk_exe firefox.exe")
+    } else {
+        WinActivate("ahk_exe firefox.exe")
     }
-    IfWinExist, AHK_EXE firefox.exe
-    {
-        WinActivate AHK_EXE firefox.exe
-    }
-    Return
+}
 
 ; Win + D (Open Discord)
-#d::
-    IfWinNotExist, AHK_EXE Discord.exe
-    {
-        Run "C:\Users\Antho\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Discord Inc\Discord.lnk"
+#d:: {
+    if !WinExist("ahk_exe Discord.exe") {
+        Run "C:\Users\Anthon\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Discord Inc\Discord.lnk"
+        WinWait("ahk_exe Discord.exe", , 10)
+        WinActivate("ahk_exe Discord.exe")
+    } else {
+        WinActivate("ahk_exe Discord.exe")
     }
-    IfWinExist, AHK_EXE Discord.exe
-    {
-        WinActivate AHK_EXE Discord.exe
-    }
-    Return
-
+}
 
 ; Win + S (Open Steam)
-#s::
-    IfWinNotExist, AHK_EXE steam.exe
-    {
+#s:: {
+    if !WinExist("ahk_exe steam.exe") {
         Run "C:\Program Files (x86)\Steam\steam.exe"
+        WinWait("ahk_exe steam.exe", , 10)
+        WinActivate("ahk_exe steam.exe")
+    } else {
+        WinActivate("ahk_exe steam.exe")
     }
-    IfWinExist, AHK_EXE steam.exe
-    {
-        WinActivate AHK_EXE steam.exe
+}
+
+; Win + Q (Open qBitTorrent)
+#q:: {
+    if !WinExist("ahk_exe steam.exe") {
+        Run "C:\Program Files\qBittorrent\qbittorrent.exe"
+        WinWait("ahk_exe qbittorrent.exe", , 10)
+        WinActivate("ahk_exe qbittorrent.exe")
+    } else {
+        WinActivate("ahk_exe qbittorrent.exe")
     }
-    Return
+}
 
-; Win + P (Open Playnite)
-; #p::
-;     IfWinNotExist, AHK_EXE Playnite.DesktopApp.exe
-;         Run "C:\Users\Antho\AppData\Local\Playnite\Playnite.DesktopApp.exe"
-;     IfWinExist, AHK_EXE Playnite.DesktopApp.exe
-;         WinActivate AHK_EXE Playnite.DesktopApp.exe
-;     Return
+#1:: {
+    startOrStopScript("C:\Users\Anthon\Scripts\ahk\auto-mouse.ahk")
+}
 
 
-; Ctrl + F12
-^F12::
-    ExitAll()   ; Exits all AHK apps except the calling script.
-    return
+; Ctrl + F12 to Exit all AHK apps except the calling script
+^F12::ExitAll()
 
 
+startOrStopScript(scriptPath) {
+    DetectHiddenWindows true
+    SetTitleMatchMode 'RegEx'
+    scriptHWND := 0 
 
-ExitAll() {  
-	DetectHiddenWindows, % ( ( DHW:=A_DetectHiddenWindows ) + 0 ) . "On"
-	WinGet, L, List, ahk_class AutoHotkey
-	Loop %L%
-		If ( L%A_Index% <> WinExist( A_ScriptFullPath " ahk_class AutoHotkey" ) )
-			PostMessage, 0x111, 65405, 0,, % "ahk_id " L%A_Index%
-	DetectHiddenWindows, %DHW%
+    ; Retrieve the list of all AutoHotkey windows
+    HWNDs := WinGetList('ahk_exe AutoHotkey')
+    For HWND in HWNDs {
+        if HWND != A_ScriptHwnd {
+            windowTitle := WinGetTitle(HWND)
+            if InStr(windowTitle, scriptPath) {
+                scriptHWND := HWND
+                break
+            }
+        }
+    }
+
+    if (scriptHWND != 0) {
+        WinClose(scriptHWND) ; Close the specific instance
+    } 
+    else {
+        Run(scriptPath) ; Run the script if it is not currently running
+    }
+}
+
+
+ExitAll() {
+	DetectHiddenWindows true
+	SetTitleMatchMode 'RegEx'
+	HWNDs := WinGetList('ahk_exe AutoHotkey')
+	For HWND in HWNDs
+	{
+		if HWND != A_ScriptHwnd
+			try
+				WinKill(HWND)
+	}
+	ExitApp
 }
 
 
