@@ -2,77 +2,106 @@
 
 ; Win + N (Open Notepad++)
 #n:: {
-    if !WinExist("ahk_exe notepad++.exe") {
+    if WinExist("ahk_exe notepad++.exe") {
+        if WinActive("ahk_exe notepad++.exe") {
+            Send("^n")  ; Simulate Ctrl+N to create a new document
+        } 
+        else {
+            WinActivate("ahk_exe notepad++.exe")
+        }
+    } 
+    else {
         Run "C:\Program Files\Notepad++\notepad++.exe"
         WinWait("ahk_exe notepad++.exe", , 10)  ; Wait for up to 10 seconds
-        WinActivate("ahk_exe notepad++.exe")
-    } else {
         WinActivate("ahk_exe notepad++.exe")
     }
 }
 
 ; Win + C (Open VSCode)
 #c:: {
-    if !WinExist("ahk_exe code.exe") {
+    if WinExist("ahk_exe code.exe") {
+        ; WinActivate("ahk_exe code.exe")
+        if WinActive("ahk_exe code.exe") {
+            Send("^+n")  ; Simulate Ctrl+Shift+N to create a new document
+        } 
+        else {
+            WinActivate("ahk_exe code.exe")
+        }
+    } 
+    else {
         Run "C:\Users\Anthon\AppData\Local\Programs\Microsoft VS Code\code.exe"
         WinWait("ahk_exe code.exe", , 10)
-        WinActivate("ahk_exe code.exe")
-    } else {
         WinActivate("ahk_exe code.exe")
     }
 }
 
 ; Win + B (Open Git Bash)
 #b:: {
-    if WinExist("ahk_class mintty") {
-        WinActivate()
+    if WinExist("ahk_exe cmd.exe") {
+        if WinActive("ahk_exe cmd.exe") { ; If cmd.exe is the active window, open a new instance
+            Run "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Git\Git Bash.lnk"
+            WinWait("ahk_exe cmd.exe", , 10)
+            WinActivate("ahk_exe cmd.exe")
+        } 
+        else { ; Otherwise, make the existing cmd.exe window active
+            WinActivate("ahk_exe cmd.exe")
+        }
     } else {
-        Run "C:\Program Files\Git\git-bash.exe"
-        WinWait("ahk_class mintty")
-        WinActivate("ahk_class mintty")
+        Run "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Git\Git Bash.lnk"
+        WinWait("ahk_exe cmd.exe", , 10)
+        WinActivate("ahk_exe cmd.exe")
     }
 }
 
 ; Win + F (Open Firefox)
 #f:: {
-    if !WinExist("ahk_exe firefox.exe") {
+    if WinExist("ahk_exe firefox.exe") {
+        if WinActive("ahk_exe firefox.exe") { ; If cmd.exe is the active window, open a new instance
+            Send("^n")  ; Simulate Ctrl+N to copen new window
+        } 
+        else { ; Otherwise, make the existing cmd.exe window active
+            WinActivate("ahk_exe firefox.exe")
+        }
+    } 
+    else {
         Run "C:\Program Files\Mozilla Firefox\firefox.exe"
         WinWait("ahk_exe firefox.exe", , 10)
-        WinActivate("ahk_exe firefox.exe")
-    } else {
         WinActivate("ahk_exe firefox.exe")
     }
 }
 
 ; Win + D (Open Discord)
 #d:: {
-    if !WinExist("ahk_exe Discord.exe") {
+    if WinExist("ahk_exe Discord.exe") {
+        WinActivate("ahk_exe Discord.exe")
+    } 
+    else {
         Run "C:\Users\Anthon\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Discord Inc\Discord.lnk"
         WinWait("ahk_exe Discord.exe", , 10)
-        WinActivate("ahk_exe Discord.exe")
-    } else {
         WinActivate("ahk_exe Discord.exe")
     }
 }
 
 ; Win + S (Open Steam)
 #s:: {
-    if !WinExist("ahk_exe steam.exe") {
+    if WinExist("ahk_exe steam.exe") {
+        WinActivate("ahk_exe steam.exe")
+    } 
+    else {
         Run "C:\Program Files (x86)\Steam\steam.exe"
         WinWait("ahk_exe steam.exe", , 10)
-        WinActivate("ahk_exe steam.exe")
-    } else {
         WinActivate("ahk_exe steam.exe")
     }
 }
 
 ; Win + Q (Open qBitTorrent)
 #q:: {
-    if !WinExist("ahk_exe steam.exe") {
+    if WinExist("ahk_exe qbittorrent.exe") {
+        WinActivate("ahk_exe qbittorrent.exe")
+    } 
+    else {
         Run "C:\Program Files\qBittorrent\qbittorrent.exe"
         WinWait("ahk_exe qbittorrent.exe", , 10)
-        WinActivate("ahk_exe qbittorrent.exe")
-    } else {
         WinActivate("ahk_exe qbittorrent.exe")
     }
 }
