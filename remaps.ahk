@@ -12,8 +12,9 @@
     } 
     else {
         Run "C:\Program Files\Notepad++\notepad++.exe"
-        WinWait("ahk_exe notepad++.exe", , 10)  ; Wait for up to 10 seconds
-        WinActivate("ahk_exe notepad++.exe")
+        if WinWait("ahk_exe notepad++.exe", , 10) { ; Wait for up to 10 seconds
+            WinActivate("ahk_exe notepad++.exe")
+        }
     }
 }
 
@@ -30,8 +31,9 @@
     } 
     else {
         Run "C:\Users\Anthon\AppData\Local\Programs\Microsoft VS Code\code.exe"
-        WinWait("ahk_exe code.exe", , 10)
-        WinActivate("ahk_exe code.exe")
+        if WinWait("ahk_exe code.exe", , 10) {
+            WinActivate("ahk_exe code.exe")
+        }
     }
 }
 
@@ -48,8 +50,9 @@
         }
     } else {
         Run "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Git\Git Bash.lnk"
-        WinWait("ahk_exe cmd.exe", , 10)
-        WinActivate("ahk_exe cmd.exe")
+        if WinWait("ahk_exe cmd.exe", , 10) {
+            WinActivate("ahk_exe cmd.exe")
+        }
     }
 }
 
@@ -65,8 +68,9 @@
     } 
     else {
         Run "C:\Program Files\Mozilla Firefox\firefox.exe"
-        WinWait("ahk_exe firefox.exe", , 10)
-        WinActivate("ahk_exe firefox.exe")
+        if WinWait("ahk_exe firefox.exe", , 10) {
+            WinActivate("ahk_exe firefox.exe")
+        }
     }
 }
 
@@ -77,20 +81,28 @@
     } 
     else {
         Run "C:\Users\Anthon\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Discord Inc\Discord.lnk"
-        WinWait("ahk_exe Discord.exe", , 10)
-        WinActivate("ahk_exe Discord.exe")
+        if WinWait("ahk_exe Discord.exe", , 10) {
+            WinActivate("ahk_exe Discord.exe")
+        }
     }
 }
 
-; Win + S (Open Steam)
+; Win + S (Open Steam) (steam.exe OR steamwebhelper.exe)
 #s:: {
     if WinExist("ahk_exe steam.exe") {
         WinActivate("ahk_exe steam.exe")
     } 
     else {
         Run "C:\Program Files (x86)\Steam\steam.exe"
-        WinWait("ahk_exe steam.exe", , 10)
-        WinActivate("ahk_exe steam.exe")
+        if WinWait("ahk_exe steam.exe", , 10) or WinWait("ahk_exe steamwebhelper.exe", , 10) {
+            ; Activate whichever window appeared
+            if WinExist("ahk_exe steam.exe") {
+                WinActivate("ahk_exe steam.exe")
+            }
+            else if WinExist("ahk_exe steamwebhelper.exe") {
+                WinActivate("ahk_exe steamwebhelper.exe")
+            }
+        }
     }
 }
 
@@ -101,8 +113,9 @@
     } 
     else {
         Run "C:\Program Files\qBittorrent\qbittorrent.exe"
-        WinWait("ahk_exe qbittorrent.exe", , 10)
-        WinActivate("ahk_exe qbittorrent.exe")
+        if WinWait("ahk_exe qbittorrent.exe", , 10) {
+            WinActivate("ahk_exe qbittorrent.exe")
+        }
     }
 }
 
