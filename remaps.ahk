@@ -119,13 +119,28 @@
     }
 }
 
+; Win + G (Open Godot)  C:\Users\Anthon\Programs\Godot_v4.4.1-stable_mono_win64
+#g:: {
+    if WinExist("ahk_exe Godot_v4.4.1-stable_mono_win64.exe") {
+        WinActivate("ahk_exe Godot_v4.4.1-stable_mono_win64.exe")
+    } 
+    else {
+        Run "C:\Users\Anthon\Programs\Godot_v4.4.1-stable_mono_win64\Godot_v4.4.1-stable_mono_win64.exe"
+        if WinWait("ahk_exe Godot_v4.4.1-stable_mono_win64.exe", , 10) {
+            WinActivate("ahk_exe Godot_v4.4.1-stable_mono_win64.exe")
+        }
+    }
+}
+
 #1:: {
     startOrStopScript("C:\Users\Anthon\Scripts\ahk\auto-mouse.ahk")
 }
 
+; Win + F12 Exit all AHK apps except the calling script
+#F12::ExitAll()
 
-; Ctrl + F12 to Exit all AHK apps except the calling script
-^F12::ExitAll()
+; ; Ctrl + F12 to Exit all AHK apps except the calling script
+; ^F12::ExitAll()
 
 
 startOrStopScript(scriptPath) {
@@ -154,22 +169,45 @@ startOrStopScript(scriptPath) {
 }
 
 
+
+
+; ExitAll() {
+; 	DetectHiddenWindows true
+; 	SetTitleMatchMode 'RegEx'
+; 	HWNDs := WinGetList('ahk_exe AutoHotkey')
+; 	For HWND in HWNDs
+; 	{
+; 		if HWND != A_ScriptHwnd
+; 			try
+; 				WinKill(HWND)
+; 	}
+; 	ExitApp
+; }
+
+
+
 ExitAll() {
-	DetectHiddenWindows true
-	SetTitleMatchMode 'RegEx'
-	HWNDs := WinGetList('ahk_exe AutoHotkey')
-	For HWND in HWNDs
-	{
-		if HWND != A_ScriptHwnd
-			try
-				WinKill(HWND)
-	}
-	ExitApp
+    DetectHiddenWindows true
+    callerHWND := A_ScriptHwnd  ; capture before any window operations
+    HWNDs := WinGetList("ahk_exe AutoHotkey64.exe")  ; v2 uses AutoHotkey64.exe
+    if !HWNDs.Length
+        HWNDs := WinGetList("ahk_exe AutoHotkey.exe")
+    For HWND in HWNDs {
+        if (HWND = callerHWND)
+            continue
+        try WinClose(HWND)
+    }
+    Sleep 500
+    ; Force kill anything that didn't close cleanly
+    HWNDs2 := WinGetList("ahk_exe AutoHotkey64.exe")
+    if !HWNDs2.Length
+        HWNDs2 := WinGetList("ahk_exe AutoHotkey.exe")
+    For HWND in HWNDs2 {
+        if (HWND = callerHWND)
+            continue
+        try WinKill(HWND)
+    }
 }
-
-
-
-
 
 
 
