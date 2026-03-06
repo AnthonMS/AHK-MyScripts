@@ -6,3 +6,6 @@
 
 # Allow the "Examples" directory
 !/Examples/
+
+# Allow the "ScreenDraw" directory
+!/ScreenDraw/
