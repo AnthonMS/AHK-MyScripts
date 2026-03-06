@@ -85,6 +85,13 @@ SetTimer(PreviewTick, 16)   ; ~60 fps, runs forever
 ~LButton Up:: ResetStroke()
 ~RButton Up:: ResetStroke()
 
+; Ctrl+Alt+D — clear entire canvas
+^!d:: {
+    global gGraphics
+    DllCall("gdiplus\GdipGraphicsClear", "Ptr", gGraphics, "UInt", 0x00000000)
+    UpdateOverlay()
+}
+
 ; Calling RestoreCursor for each key up so it does not interfere with the above hotkeys
 ~LCtrl Up:: RestoreCursors()
 ~LAlt Up::  RestoreCursors()
