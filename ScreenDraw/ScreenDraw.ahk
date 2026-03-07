@@ -4,15 +4,13 @@
 
 CoordMode "Mouse", "Screen"
 
-; ═════════════════════════════════════════════
-;  GDI+ startup
-; ═════════════════════════════════════════════
+; GDI+ startup
 StartupInput := Buffer(16, 0)
 NumPut("UInt", 1, StartupInput, 0)
 DllCall("gdiplus\GdiplusStartup", "Ptr*", &tok := 0, "Ptr", StartupInput, "Ptr", 0)
 gToken := tok
 
-; ─── Cursor setup ────────────────────────────
+; Cursor setup
 global gArrow := DllCall("LoadCursor", "Ptr", 0, "Int", 32512, "Ptr")
 global gCursorIds := [
     32512, ; Arrow
@@ -31,9 +29,7 @@ global gCursorIds := [
     32649, ; Hand (modern finger pointer)
 ]
 
-; ═════════════════════════════════════════════
-;  Create full screen layered canvas
-; ═════════════════════════════════════════════
+; Create full screen layered canvas
 W := SysGet(78)
 H := SysGet(79)
 X := SysGet(76)
@@ -43,7 +39,7 @@ canvas := Gui("-Caption +ToolWindow +AlwaysOnTop +LastFound +E0x80000 +E0x20")
 canvas.Show("x" X " y" Y " w" W " h" H " Hide")
 gHWND := canvas.Hwnd
 
-; ─── GDI+ bitmap — starts fully transparent ──
+; GDI+ bitmap — starts fully transparent
 DllCall("gdiplus\GdipCreateBitmapFromScan0",
     "Int", W, "Int", H, "Int", 0, "Int", 0x26200A, "Ptr", 0, "Ptr*", &gBitmap := 0)
 DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", gBitmap, "Ptr*", &gGraphics := 0)
@@ -55,57 +51,60 @@ WinShow(gHWND)
 
 gDefaultCursor := DllCall("LoadCursor", "Ptr", 0, "Ptr", 32512, "Ptr")
 
-; ─── Draw color (0xRRGGBB) ───────────────────
-global gDrawColor := 0xFF0000   ; default red
+; Draw color (0xRRGGBB)
+global gDrawColor := 0xFF0000   ; default red (0xRRGGBB)
+global gOpacity   := 255        ; 0 = fully transparent, 255 = fully opaque
+global gBrushSize := 20         ; diameter in pixels
 
-; ─── Always-running preview state tracker ────
+; Size slider globals
+global gSliderGui  := 0
+global gSliderHWND := 0
+
+; Always-running preview state tracker
 global gPreviewActive := false
 global gLastX         := 0
 global gLastY         := 0
 global gFirstStroke   := true
 SetTimer(PreviewTick, 16)
 
-; ─── Color wheel globals ─────────────────────
+; Color wheel globals
 global gWheelGui    := 0
 global gWheelHWND   := 0
 global gWheelBitmap := 0
 
-; ═════════════════════════════════════════════
-;  HOTKEYS
-; ═════════════════════════════════════════════
-; Ctrl+Alt+LButton — draw
-^!LButton:: {
+; HOTKEYS
+
+^!LButton:: {                   ; Ctrl+Alt+LButton — draw
     global gFirstStroke
     ForceCursors()
     MouseGetPos(&mx, &my)
-    DrawCircle(mx, my, 20, DrawARGB())
+    DrawCircle(mx, my, gBrushSize // 2, DrawARGB())
     gFirstStroke := false
 }
-
-; Ctrl+Alt+RButton — erase
-^!RButton:: {
+^!RButton:: {                   ; Ctrl+Alt+RButton — erase
     global gFirstStroke
     ForceCursors()
     MouseGetPos(&mx, &my)
-    EraseCircle(mx, my, 20)
+    EraseCircle(mx, my, gBrushSize // 2)
     gFirstStroke := false
 }
-
-; Ctrl+Alt+D — clear entire canvas
-^!d:: {
+^!d:: {                         ; Ctrl+Alt+D — clear screen
     global gGraphics
     DllCall("gdiplus\GdipGraphicsClear", "Ptr", gGraphics, "UInt", 0x00000000)
     UpdateOverlay()
 }
-
-; Ctrl+Alt+C — open color wheel
-^!c:: OpenColorWheel()
+^!c:: {                         ; Ctrl+Alt+C — color wheel
+    OpenColorWheel()
+}
+^!s:: {                         ; Ctrl+Alt+S — size slider
+    OpenSizeSlider()
+}
 
 ; On button release, reset interpolation so next stroke starts fresh
 ~LButton Up:: ResetStroke()
 ~RButton Up:: ResetStroke()
 
-; Restore cursors on modifier release
+; Restore cursors on release
 ~LCtrl Up:: RestoreCursors()
 ~LAlt Up::  RestoreCursors()
 ~RCtrl Up:: RestoreCursors()
@@ -116,22 +115,19 @@ ResetStroke() {
     gFirstStroke := true
 }
 
-; ═════════════════════════════════════════════
-;  Helper — build full ARGB from gDrawColor
-; ═════════════════════════════════════════════
+; Helper — build full ARGB from gDrawColor
 DrawARGB() {
-    global gDrawColor
-    return 0xFF000000 | gDrawColor
+    global gDrawColor, gOpacity
+    return (gOpacity << 24) | gDrawColor
 }
 
 PreviewARGB() {
-    global gDrawColor
-    return 0x44000000 | gDrawColor   ; ~27% opacity
+    global gDrawColor, gOpacity
+    previewAlpha := Max(0x33, gOpacity >> 2)   ; at least faintly visible
+    return (previewAlpha << 24) | gDrawColor
 }
 
-; ════════════════════════════════════════════════════════
-;  Preview tick — always running, checks key state itself
-; ════════════════════════════════════════════════════════
+; Preview tick — always running, checks key state itself
 PreviewTick() {
     global gPreviewActive, gLastX, gLastY, gFirstStroke
     bothHeld := GetKeyState("LCtrl", "P") && GetKeyState("LAlt", "P")
@@ -145,9 +141,9 @@ PreviewTick() {
         if (lDown || rDown) {
             if gFirstStroke {
                 if lDown
-                    DrawCircle(mx, my, 20, DrawARGB())
+                    DrawCircle(mx, my, gBrushSize // 2, DrawARGB())
                 else
-                    EraseCircle(mx, my, 20)
+                    EraseCircle(mx, my, gBrushSize // 2)
                 gLastX := mx
                 gLastY := my
                 gFirstStroke := false
@@ -155,16 +151,16 @@ PreviewTick() {
                 dx   := mx - gLastX
                 dy   := my - gLastY
                 dist := Sqrt(dx * dx + dy * dy)
-                step := 10
+                step  := Max(1, gBrushSize // 4)   ; half-radius step keeps strokes solid
                 steps := Max(1, Floor(dist / step))
                 loop steps {
                     t  := A_Index / steps
                     ix := Round(gLastX + dx * t)
                     iy := Round(gLastY + dy * t)
                     if lDown
-                        DrawCircleNoFlush(ix, iy, 20, DrawARGB())
+                        DrawCircleNoFlush(ix, iy, gBrushSize // 2, DrawARGB())
                     else
-                        EraseCircleNoFlush(ix, iy, 20)
+                        EraseCircleNoFlush(ix, iy, gBrushSize // 2)
                 }
                 UpdateOverlay()
                 gLastX := mx
@@ -173,7 +169,7 @@ PreviewTick() {
         } else {
             gLastX := mx
             gLastY := my
-            UpdateOverlayWithPreview(mx, my, 20)
+            UpdateOverlayWithPreview(mx, my, gBrushSize // 2)
         }
 
         gPreviewActive := true
@@ -184,9 +180,7 @@ PreviewTick() {
     }
 }
 
-; ═════════════════════════════════════════════
-;  Cursor functions
-; ═════════════════════════════════════════════
+; Cursor functions
 ForceCursors() {
     global gArrow, gCursorIds
     for id in gCursorIds {
@@ -199,9 +193,7 @@ RestoreCursors() {
     DllCall("SystemParametersInfo", "UInt", 0x57, "UInt", 0, "Ptr", 0, "UInt", 0)
 }
 
-; ═════════════════════════════════════════════
-;  Draw / Erase — no-flush variants (used during interpolation)
-; ═════════════════════════════════════════════
+; Draw / Erase — no-flush variants (used during interpolation)
 DrawCircleNoFlush(mx, my, r, argb) {
     global gGraphics
     ox := SysGet(76)
@@ -242,9 +234,7 @@ EraseCircle(mx, my, r) {
     UpdateOverlay()
 }
 
-; ═════════════════════════════════════════════
-;  Push GDI+ bitmap to layered window
-; ═════════════════════════════════════════════
+; Push GDI+ bitmap to layered window
 UpdateOverlay() {
     global gHWND, gBitmap
     W  := SysGet(78)
@@ -279,9 +269,7 @@ UpdateOverlay() {
     DllCall("ReleaseDC",    "Ptr", 0, "Ptr", hdc)
 }
 
-; ═════════════════════════════════════════════
-;  Clone base bitmap, draw preview circle, push to overlay
-; ═════════════════════════════════════════════
+; Clone base bitmap, draw preview circle, push to overlay
 UpdateOverlayWithPreview(mx, my, r) {
     global gHWND, gBitmap
     W  := SysGet(78)
@@ -331,9 +319,7 @@ UpdateOverlayWithPreview(mx, my, r) {
     DllCall("gdiplus\GdipDisposeImage", "Ptr", tempBitmap)
 }
 
-; ═════════════════════════════════════════════
-;  Color wheel
-; ═════════════════════════════════════════════
+; Color wheel
 OpenColorWheel() {
     global gWheelGui, gWheelHWND, gWheelBitmap
 
@@ -345,38 +331,55 @@ OpenColorWheel() {
 
     MouseGetPos(&cx, &cy)
 
-    outerR   := 90
-    innerR   := 34
-    padding  := 4
-    winSize  := (outerR + padding) * 2   ; 188 — wheel diameter
-    barGap   := 6
-    barH     := 14
-    barInset := 8
-    totalH   := winSize + barGap + barH
+    outerR      := 90
+    innerR      := 34
+    padding     := 4
+    winSize     := (outerR + padding) * 2   ; 188 — wheel diameter
+    barGap      := 6
+    barH        := 14
+    barInset    := 8
+    sliderGap   := 6
+    sliderW     := 14
+    sliderInset := 6
+    totalW      := winSize + sliderGap + sliderW
+    totalH      := winSize + barGap + barH
 
     gWheelGui := Gui("-Caption +ToolWindow +AlwaysOnTop +LastFound")
     gWheelGui.BackColor := "000000"
-    gWheelGui.Show("w" winSize " h" totalH " Hide")
+    gWheelGui.Show("w" totalW " h" totalH " Hide")
     gWheelHWND := gWheelGui.Hwnd
 
     WinMove(cx - outerR - padding, cy - outerR - padding, , , gWheelHWND)
 
-    ; Combined region: circle (wheel) + rounded rect (gradient bar)
+    ; Combined region: circle + bottom bar + right opacity slider pill
     hEllipse  := DllCall("CreateEllipticRgn",
         "Int", 0, "Int", 0, "Int", winSize, "Int", winSize, "Ptr")
     hBar      := DllCall("CreateRoundRectRgn",
         "Int", barInset, "Int", winSize + barGap,
         "Int", winSize - barInset, "Int", totalH,
         "Int", barH, "Int", barH, "Ptr")
+    hSlider   := DllCall("CreateRoundRectRgn",
+        "Int", winSize + sliderGap, "Int", sliderInset,
+        "Int", totalW, "Int", winSize - sliderInset,
+        "Int", sliderW, "Int", sliderW, "Ptr")
+    ; Close button: 22x22 square top-left
+    btnSz := 22
+    hBtn  := DllCall("CreateRectRgn", "Int", 0, "Int", 0, "Int", btnSz, "Int", btnSz, "Ptr")
     hCombined := DllCall("CreateRectRgn", "Int", 0, "Int", 0, "Int", 1, "Int", 1, "Ptr")
-    DllCall("CombineRgn", "Ptr", hCombined, "Ptr", hEllipse, "Ptr", hBar, "Int", 2)
+    DllCall("CombineRgn", "Ptr", hCombined, "Ptr", hEllipse,  "Ptr", hBar,    "Int", 2)
+    DllCall("CombineRgn", "Ptr", hCombined, "Ptr", hCombined, "Ptr", hSlider, "Int", 2)
+    DllCall("CombineRgn", "Ptr", hCombined, "Ptr", hCombined, "Ptr", hBtn,    "Int", 2)
     DllCall("SetWindowRgn", "Ptr", gWheelHWND, "Ptr", hCombined, "Int", true)
     DllCall("DeleteObject", "Ptr", hEllipse)
     DllCall("DeleteObject", "Ptr", hBar)
+    DllCall("DeleteObject", "Ptr", hSlider)
+    DllCall("DeleteObject", "Ptr", hBtn)
 
-    gWheelBitmap := RenderWheel(winSize, outerR, innerR, padding, barGap, barH, barInset, totalH)
+    gWheelBitmap := RenderWheel(winSize, outerR, innerR, padding, barGap, barH, barInset, totalH, totalW, sliderGap, sliderW, sliderInset)
 
     OnMessage(0x000F, WM_PAINT)
+    OnMessage(0x0084, WM_NCHITTEST_Wheel)   ; WM_NCHITTEST — enables center-drag
+    OnMessage(0x0200, WM_MOUSEMOVE_Wheel)   ; WM_MOUSEMOVE — drag-to-pick color
     WinShow(gWheelHWND)
 
     Hotkey "~LButton Up", WheelClicked, "On"
@@ -386,6 +389,8 @@ CloseColorWheel() {
     global gWheelGui, gWheelBitmap
     Hotkey "~LButton Up", WheelClicked, "Off"
     OnMessage(0x000F, WM_PAINT, 0)
+    OnMessage(0x0084, WM_NCHITTEST_Wheel, 0)
+    OnMessage(0x0200, WM_MOUSEMOVE_Wheel, 0)
     if gWheelBitmap
         DllCall("DeleteObject", "Ptr", gWheelBitmap)
     gWheelBitmap := 0
@@ -393,21 +398,21 @@ CloseColorWheel() {
     gWheelGui := 0
 }
 
-RenderWheel(winSize, outerR, innerR, padding, barGap, barH, barInset, totalH) {
-    global gDrawColor
+RenderWheel(winSize, outerR, innerR, padding, barGap, barH, barInset, totalH, totalW, sliderGap, sliderW, sliderInset) {
+    global gDrawColor, gOpacity
 
     screenDC := DllCall("GetDC", "Ptr", 0, "Ptr")
     memDC    := DllCall("CreateCompatibleDC", "Ptr", screenDC, "Ptr")
-    hbmp     := DllCall("CreateCompatibleBitmap", "Ptr", screenDC, "Int", winSize, "Int", totalH, "Ptr")
+    hbmp     := DllCall("CreateCompatibleBitmap", "Ptr", screenDC, "Int", totalW, "Int", totalH, "Ptr")
     DllCall("SelectObject", "Ptr", memDC, "Ptr", hbmp)
     DllCall("ReleaseDC", "Ptr", 0, "Ptr", screenDC)
 
     ; Fill entire background black
     rc := Buffer(16, 0)
-    NumPut("Int", 0,       rc,  0)
-    NumPut("Int", 0,       rc,  4)
-    NumPut("Int", winSize, rc,  8)
-    NumPut("Int", totalH,  rc, 12)
+    NumPut("Int", 0,      rc,  0)
+    NumPut("Int", 0,      rc,  4)
+    NumPut("Int", totalW, rc,  8)
+    NumPut("Int", totalH, rc, 12)
     bgBrush := DllCall("CreateSolidBrush", "UInt", 0x000000, "Ptr")
     DllCall("FillRect", "Ptr", memDC, "Ptr", rc, "Ptr", bgBrush)
     DllCall("DeleteObject", "Ptr", bgBrush)
@@ -415,7 +420,25 @@ RenderWheel(winSize, outerR, innerR, padding, barGap, barH, barInset, totalH) {
     cx := outerR + padding
     cy := outerR + padding
 
-    ; ── Hue wheel ────────────────────────────
+    ; Close button (top-left 22x22)
+    btnSz := 22
+    btnBrush := DllCall("CreateSolidBrush", "UInt", 0x1A1A1A, "Ptr")
+    btnRc := Buffer(16, 0)
+    NumPut("Int", 0,     btnRc,  0), NumPut("Int", 0,     btnRc,  4)
+    NumPut("Int", btnSz, btnRc,  8), NumPut("Int", btnSz, btnRc, 12)
+    DllCall("FillRect", "Ptr", memDC, "Ptr", btnRc, "Ptr", btnBrush)
+    DllCall("DeleteObject", "Ptr", btnBrush)
+    ; Draw X with two diagonal lines
+    xPad := 6
+    xPen := DllCall("CreatePen", "Int", 0, "Int", 2, "UInt", 0xAAAAAA, "Ptr")
+    DllCall("SelectObject", "Ptr", memDC, "Ptr", xPen)
+    DllCall("MoveToEx", "Ptr", memDC, "Int", xPad,          "Int", xPad,          "Ptr", 0)
+    DllCall("LineTo",   "Ptr", memDC, "Int", btnSz - xPad,  "Int", btnSz - xPad)
+    DllCall("MoveToEx", "Ptr", memDC, "Int", btnSz - xPad,  "Int", xPad,          "Ptr", 0)
+    DllCall("LineTo",   "Ptr", memDC, "Int", xPad,          "Int", btnSz - xPad)
+    DllCall("DeleteObject", "Ptr", xPen)
+
+    ; Hue wheel
     steps := 720
     Loop steps {
         angle := (A_Index - 1) * (360.0 / steps)
@@ -448,24 +471,11 @@ RenderWheel(winSize, outerR, innerR, padding, barGap, barH, barInset, totalH) {
         DllCall("DeleteObject", "Ptr", pen)
     }
 
-    ; Center circle — shows current draw color
-    centerBGR := RGBtoBGR(gDrawColor)
-    cBrush := DllCall("CreateSolidBrush", "UInt", centerBGR, "Ptr")
-    cPen   := DllCall("CreatePen", "Int", 0, "Int", 2, "UInt", 0xCCCCCC, "Ptr")
-    DllCall("SelectObject", "Ptr", memDC, "Ptr", cBrush)
-    DllCall("SelectObject", "Ptr", memDC, "Ptr", cPen)
-    DllCall("Ellipse", "Ptr", memDC,
-        "Int", cx - innerR + 3, "Int", cy - innerR + 3,
-        "Int", cx + innerR - 3, "Int", cy + innerR - 3)
-    DllCall("DeleteObject", "Ptr", cBrush)
-    DllCall("DeleteObject", "Ptr", cPen)
-
-    ; ── Black-to-white gradient bar ──────────
-    ; Layout: [black cap][gradient][white cap]
+    ; Black-to-white gradient bar
     barX1   := barInset
     barY1   := winSize + barGap
     barW    := winSize - barInset * 2
-    capW    := 18   ; solid black/white end caps (easier to click)
+    capW    := 18
     gradW   := barW - capW * 2
 
     ; Black cap
@@ -480,7 +490,7 @@ RenderWheel(winSize, outerR, innerR, padding, barGap, barH, barInset, totalH) {
 
     ; Gradient middle
     Loop gradW {
-        t   := (A_Index - 1) / (gradW - 1)   ; 0.0 → 1.0
+        t   := (A_Index - 1) / (gradW - 1)
         v   := Round(t * 255)
         bgr := (v << 16) | (v << 8) | v
         gBrush := DllCall("CreateSolidBrush", "UInt", bgr, "Ptr")
@@ -496,13 +506,60 @@ RenderWheel(winSize, outerR, innerR, padding, barGap, barH, barInset, totalH) {
 
     ; White cap
     wrc := Buffer(16, 0)
-    NumPut("Int", barX1 + capW + gradW,         wrc,  0)
-    NumPut("Int", barY1,                         wrc,  4)
-    NumPut("Int", barX1 + capW + gradW + capW,   wrc,  8)
-    NumPut("Int", barY1 + barH,                  wrc, 12)
+    NumPut("Int", barX1 + capW + gradW,        wrc,  0)
+    NumPut("Int", barY1,                        wrc,  4)
+    NumPut("Int", barX1 + capW + gradW + capW,  wrc,  8)
+    NumPut("Int", barY1 + barH,                 wrc, 12)
     wBrush := DllCall("CreateSolidBrush", "UInt", 0xFFFFFF, "Ptr")
     DllCall("FillRect", "Ptr", memDC, "Ptr", wrc, "Ptr", wBrush)
     DllCall("DeleteObject", "Ptr", wBrush)
+
+    ; Opacity slider
+    ; Layout: [white cap (100%)][gradient][black cap (0%)]
+    sX1  := winSize + sliderGap
+    sY1  := sliderInset
+    sH   := winSize - sliderInset * 2
+    sCapH := 14   ; solid end caps — easier to hit 100% and 0%
+    sGradH := sH - sCapH * 2
+
+    ; Top cap — fully opaque (bright)
+    tcBrush := DllCall("CreateSolidBrush", "UInt", 0xFFFFFF, "Ptr")
+    trc := Buffer(16, 0)
+    NumPut("Int", sX1,          trc,  0), NumPut("Int", sY1,           trc,  4)
+    NumPut("Int", sX1 + sliderW, trc, 8), NumPut("Int", sY1 + sCapH,   trc, 12)
+    DllCall("FillRect", "Ptr", memDC, "Ptr", trc, "Ptr", tcBrush)
+    DllCall("DeleteObject", "Ptr", tcBrush)
+
+    ; Gradient middle
+    Loop sGradH {
+        t   := 1.0 - (A_Index - 1) / (sGradH - 1)
+        v   := Round(t * 200) + 55
+        bgr := (v << 16) | (v << 8) | v
+        sBrush := DllCall("CreateSolidBrush", "UInt", bgr, "Ptr")
+        src := Buffer(16, 0)
+        NumPut("Int", sX1,                        src,  0)
+        NumPut("Int", sY1 + sCapH + A_Index - 1,  src,  4)
+        NumPut("Int", sX1 + sliderW,              src,  8)
+        NumPut("Int", sY1 + sCapH + A_Index,      src, 12)
+        DllCall("FillRect", "Ptr", memDC, "Ptr", src, "Ptr", sBrush)
+        DllCall("DeleteObject", "Ptr", sBrush)
+    }
+
+    ; Bottom cap — fully transparent (dark)
+    bcBrush := DllCall("CreateSolidBrush", "UInt", 0x373737, "Ptr")
+    brc := Buffer(16, 0)
+    NumPut("Int", sX1,           brc,  0), NumPut("Int", sY1 + sCapH + sGradH,         brc,  4)
+    NumPut("Int", sX1 + sliderW, brc,  8), NumPut("Int", sY1 + sCapH + sGradH + sCapH, brc, 12)
+    DllCall("FillRect", "Ptr", memDC, "Ptr", brc, "Ptr", bcBrush)
+    DllCall("DeleteObject", "Ptr", bcBrush)
+
+    ; Marker line showing current opacity position
+    markerY := sY1 + sCapH + Round((1.0 - gOpacity / 255) * (sGradH - 1))
+    mPen := DllCall("CreatePen", "Int", 0, "Int", 2, "UInt", 0xFFFFFF, "Ptr")
+    DllCall("SelectObject", "Ptr", memDC, "Ptr", mPen)
+    DllCall("MoveToEx", "Ptr", memDC, "Int", sX1,             "Int", markerY, "Ptr", 0)
+    DllCall("LineTo",   "Ptr", memDC, "Int", sX1 + sliderW,   "Int", markerY)
+    DllCall("DeleteObject", "Ptr", mPen)
 
     DllCall("DeleteDC", "Ptr", memDC)
     return hbmp
@@ -524,12 +581,140 @@ WM_PAINT(wParam, lParam, msg, hwnd) {
         "Ptr", memDC, "Int", 0, "Int", 0, "UInt", 0x00CC0020)
 
     DllCall("DeleteDC", "Ptr", memDC)
+
+    ; Draw center dot live so it always reflects the current gDrawColor
+    outerR  := 90
+    innerR  := 34
+    padding := 4
+    cx := outerR + padding
+    cy := outerR + padding
+    centerBGR := RGBtoBGR(gDrawColor)
+    cBrush := DllCall("CreateSolidBrush", "UInt", centerBGR, "Ptr")
+    cPen   := DllCall("CreatePen", "Int", 0, "Int", 2, "UInt", 0xCCCCCC, "Ptr")
+    DllCall("SelectObject", "Ptr", hdc, "Ptr", cBrush)
+    DllCall("SelectObject", "Ptr", hdc, "Ptr", cPen)
+    DllCall("Ellipse", "Ptr", hdc,
+        "Int", cx - innerR + 3, "Int", cy - innerR + 3,
+        "Int", cx + innerR - 3, "Int", cy + innerR - 3)
+    DllCall("DeleteObject", "Ptr", cBrush)
+    DllCall("DeleteObject", "Ptr", cPen)
+
     DllCall("EndPaint", "Ptr", hwnd, "Ptr", ps)
     return 0
 }
 
+; Drag wheel window by clicking the center dot
+WM_NCHITTEST_Wheel(wParam, lParam, msg, hwnd) {
+    global gWheelHWND
+    if (hwnd != gWheelHWND)
+        return
+
+    ; Convert screen coords from lParam to window-local coords
+    sx := lParam & 0xFFFF
+    sy := (lParam >> 16) & 0xFFFF
+    ; Handle sign extension for negative screen coords
+    if (sx >= 0x8000)
+        sx -= 0x10000
+    if (sy >= 0x8000)
+        sy -= 0x10000
+    WinGetPos(&wx, &wy, , , gWheelHWND)
+    lx := sx - wx
+    ly := sy - wy
+
+    ; Center circle: innerR=34, padding=4, outerR=90 → cx=cy=94
+    cx := 94
+    cy := 94
+    innerR := 34
+    dx := lx - cx
+    dy := ly - cy
+    if (dx * dx + dy * dy <= innerR * innerR)
+        return 2   ; HTCAPTION — Windows handles drag natively
+}
+
+; ── Drag-to-pick: update color while LButton held and mouse moves ────────────
+WM_MOUSEMOVE_Wheel(wParam, lParam, msg, hwnd) {
+    global gWheelHWND, gDrawColor, gOpacity
+    if (hwnd != gWheelHWND)
+        return
+    if !(wParam & 0x0001)   ; MK_LBUTTON — only act when left button is held
+        return
+
+    lx := lParam & 0xFFFF
+    ly := (lParam >> 16) & 0xFFFF
+
+    ; Geometry (must match RenderWheel)
+    outerR      := 90
+    innerR      := 34
+    padding     := 4
+    winSize     := (outerR + padding) * 2
+    barGap      := 6
+    barH        := 14
+    barInset    := 8
+    barY1       := winSize + barGap
+    barX1       := barInset
+    barW        := winSize - barInset * 2
+    capW        := 18
+    gradW       := barW - capW * 2
+    sliderGap   := 6
+    sliderW     := 14
+    sliderInset := 6
+    sX1    := winSize + sliderGap
+    sY1    := sliderInset
+    sH     := winSize - sliderInset * 2
+    sCapH  := 14
+    sGradH := sH - sCapH * 2
+
+    ; Opacity slider
+    if (lx >= sX1 && lx < sX1 + sliderW && ly >= sY1 && ly < sY1 + sH) {
+        localY := ly - sY1
+        if (localY < sCapH)
+            gOpacity := 255
+        else if (localY >= sCapH + sGradH)
+            gOpacity := 0
+        else {
+            t        := 1.0 - (localY - sCapH) / (sGradH - 1)
+            gOpacity := Round(t * 255)
+        }
+        ToolTip(Round(gOpacity / 255 * 100) "%")
+        SetTimer(() => ToolTip(), -1500)
+        return
+    }
+
+    ; Grayscale bar
+    if (ly >= barY1 && ly < barY1 + barH && lx >= barX1 && lx < barX1 + barW) {
+        localX := lx - barX1
+        if (localX < capW)
+            v := 0
+        else if (localX >= capW + gradW)
+            v := 255
+        else {
+            t := (localX - capW) / (gradW - 1)
+            v := Round(t * 255)
+        }
+        gDrawColor := (v << 16) | (v << 8) | v
+        DllCall("InvalidateRect", "Ptr", gWheelHWND, "Ptr", 0, "Int", true)
+        return
+    }
+
+    ; Hue wheel ring
+    cx   := outerR + padding
+    cy   := outerR + padding
+    dx   := lx - cx
+    dy   := ly - cy
+    dist := Sqrt(dx * dx + dy * dy)
+    if (dist >= innerR && dist <= outerR) {
+        hdc := DllCall("GetDC", "Ptr", gWheelHWND, "Ptr")
+        bgr := DllCall("GetPixel", "Ptr", hdc, "Int", lx, "Int", ly, "UInt")
+        DllCall("ReleaseDC", "Ptr", gWheelHWND, "Ptr", hdc)
+        if (bgr != 0x000000 && bgr != 0) {
+            gDrawColor := RGBtoBGR(bgr)
+            DllCall("InvalidateRect", "Ptr", gWheelHWND, "Ptr", 0, "Int", true)
+        }
+    }
+}
+
 WheelClicked(thisHotkey) {
-    global gWheelGui, gWheelHWND, gDrawColor
+    global gWheelGui, gWheelHWND, gDrawColor, gOpacity
 
     if !IsObject(gWheelGui)
         return
@@ -537,69 +722,87 @@ WheelClicked(thisHotkey) {
     MouseGetPos(&mx, &my)
     WinGetPos(&wx, &wy, &ww, &wh, gWheelHWND)
 
-    ; Released outside the window — close without selecting
-    if (mx < wx || mx > wx+ww || my < wy || my > wy+wh) {
-        CloseColorWheel()
+    ; Click outside window — ignore, wheel stays open
+    if (mx < wx || mx > wx+ww || my < wy || my > wy+wh)
         return
-    }
 
     lx := mx - wx
     ly := my - wy
 
-    ; ── Gradient bar zone: compute color mathematically ──
-    ; Bar geometry must match RenderWheel (outerR=90, padding=4, barGap=6, barH=14, barInset=8)
-    outerR   := 90
-    padding  := 4
-    winSize  := (outerR + padding) * 2
-    barGap   := 6
-    barH     := 14
-    barInset := 8
-    barY1    := winSize + barGap
-    barX1    := barInset
-    barW     := winSize - barInset * 2
-
-    capW  := 18
-    gradW := barW - capW * 2
-
-    if (ly >= barY1 && ly < barY1 + barH && lx >= barX1 && lx < barX1 + barW) {
-        localX := lx - barX1
-        if (localX < capW) {
-            v := 0          ; black cap
-        } else if (localX >= capW + gradW) {
-            v := 255        ; white cap
-        } else {
-            t := (localX - capW) / (gradW - 1)
-            v := Round(t * 255)
-        }
-        gDrawColor := (v << 16) | (v << 8) | v
+    ; Close button (top-left 22x22)
+    if (lx >= 0 && lx < 22 && ly >= 0 && ly < 22) {
         CloseColorWheel()
-        ToolTip("Color: #" Format("{:06X}", gDrawColor))
+        return
+    }
+
+    ; Geometry constants (must match RenderWheel)
+    outerR      := 90
+    padding     := 4
+    winSize     := (outerR + padding) * 2
+    barGap      := 6
+    barH        := 14
+    barInset    := 8
+    barY1       := winSize + barGap
+    barX1       := barInset
+    barW        := winSize - barInset * 2
+    capW        := 18
+    gradW       := barW - capW * 2
+    sliderGap   := 6
+    sliderW     := 14
+    sliderInset := 6
+    sX1 := winSize + sliderGap
+    sY1 := sliderInset
+    sH  := winSize - sliderInset * 2
+
+    ; Opacity slider
+    sCapH  := 14
+    sGradH := sH - sCapH * 2
+
+    if (lx >= sX1 && lx < sX1 + sliderW && ly >= sY1 && ly < sY1 + sH) {
+        localY := ly - sY1
+        if (localY < sCapH)
+            gOpacity := 255     ; top cap = 100%
+        else if (localY >= sCapH + sGradH)
+            gOpacity := 0       ; bottom cap = 0%
+        else {
+            t        := 1.0 - (localY - sCapH) / (sGradH - 1)
+            gOpacity := Round(t * 255)
+        }
+        ToolTip(Round(gOpacity / 255 * 100) "%")
         SetTimer(() => ToolTip(), -1500)
         return
     }
 
-    ; ── Hue wheel zone: sample pixel ──────────
+    ; Grayscale bar
+    if (ly >= barY1 && ly < barY1 + barH && lx >= barX1 && lx < barX1 + barW) {
+        localX := lx - barX1
+        if (localX < capW)
+            v := 0
+        else if (localX >= capW + gradW)
+            v := 255
+        else {
+            t := (localX - capW) / (gradW - 1)
+            v := Round(t * 255)
+        }
+        gDrawColor := (v << 16) | (v << 8) | v
+        DllCall("InvalidateRect", "Ptr", gWheelHWND, "Ptr", 0, "Int", true)
+        return
+    }
+
+    ; Hue wheel
     screenDC := DllCall("GetDC", "Ptr", gWheelHWND, "Ptr")
     bgr      := DllCall("GetPixel", "Ptr", screenDC, "Int", lx, "Int", ly, "UInt")
     DllCall("ReleaseDC", "Ptr", gWheelHWND, "Ptr", screenDC)
 
-    ; Black = background/gap — close without selecting
-    if (bgr = 0x000000 || bgr = 0) {
-        CloseColorWheel()
+    ; Black = background gap — ignore
+    if (bgr = 0x000000 || bgr = 0)
         return
-    }
 
-    ; Store as 0xRRGGBB and close
     gDrawColor := RGBtoBGR(bgr)
-    CloseColorWheel()
-
-    ToolTip("Color: #" Format("{:06X}", gDrawColor))
-    SetTimer(() => ToolTip(), -1500)
+    DllCall("InvalidateRect", "Ptr", gWheelHWND, "Ptr", 0, "Int", true)
 }
 
-; ═════════════════════════════════════════════
-;  Color helpers
-; ═════════════════════════════════════════════
+; Color helpers
 HueToRGB(h) {
     h := Mod(h, 360)
     s := 1.0
@@ -628,12 +831,89 @@ RGBtoBGR(c) {
     return ((c & 0xFF) << 16) | (c & 0x00FF00) | ((c >> 16) & 0xFF)
 }
 
-; ─── Cleanup on exit ─────────────────────────
+
+; Size slider
+WM_LBUTTONDOWN_Slider(wParam, lParam, msg, hwnd) {
+    global gSliderHWND
+    if (hwnd = gSliderHWND)
+        PostMessage(0x00A1, 2, 0, , gSliderHWND)   ; SC_MOVE — let Windows drag it
+}
+
+OpenSizeSlider() {
+    global gSliderGui, gSliderHWND, gBrushSize
+
+    ; Toggle off if already open
+    if IsObject(gSliderGui) {
+        CloseSizeSlider()
+        return
+    }
+
+    MouseGetPos(&cx, &cy)
+
+    winW := 50
+    winH := 380
+
+    gSliderGui := Gui("-Caption +ToolWindow +AlwaysOnTop +LastFound")
+    gSliderGui.BackColor := "1E1E1E"
+    gSliderGui.Show("w" winW " h" winH " Hide")
+    gSliderHWND := gSliderGui.Hwnd
+
+    WinMove(cx, cy - (winH // 2), , , gSliderHWND)
+
+    ; Close button
+    gSliderGui.SetFont("s11 cGray Bold", "Segoe UI")
+    closeBtn := gSliderGui.Add("Text", "x0 y4 w50 h24 Center +0x100", "✕")
+    closeBtn.OnEvent("Click", (*) => CloseSizeSlider())
+
+    ; Vertical slider
+    slider := gSliderGui.Add("Slider",
+        "x15 y34 w20 h300 Vertical Invert Range1-500 NoTicks", gBrushSize)
+
+    slider.OnEvent("Change", (*) {
+        global gBrushSize
+        gBrushSize := slider.Value
+        ToolTip(gBrushSize "px")
+        SetTimer(() => ToolTip(), -1500)
+    })
+
+    ; Continuous tooltip while dragging
+    OnMessage(0x0115, WM_VSCROLL_Slider)   ; WM_VSCROLL fires on every slider move
+
+    ; Drag to move
+    OnMessage(0x0201, WM_LBUTTONDOWN_Slider)
+
+    WinShow(gSliderHWND)
+}
+
+WM_VSCROLL_Slider(wParam, lParam, msg, hwnd) {
+    global gSliderHWND, gBrushSize, gSliderGui
+    if (hwnd != gSliderHWND || !IsObject(gSliderGui))
+        return
+    ; lParam is the HWND of the slider control — read its value via control message
+    val := SendMessage(0x0400, 0, 0, lParam)   ; TBM_GETPOS = 0x0400
+    val := (1 + 500) - val                     ; correct for Invert style
+    if (val > 0) {
+        gBrushSize := val
+        ToolTip(gBrushSize "px")
+        SetTimer(() => ToolTip(), -1500)
+    }
+}
+
+CloseSizeSlider() {
+    global gSliderGui
+    OnMessage(0x0115, WM_VSCROLL_Slider, 0)
+    OnMessage(0x0201, WM_LBUTTONDOWN_Slider, 0)
+    gSliderGui.Destroy()
+    gSliderGui := 0
+}
+
 OnExit((*) {
     global gGraphics, gBitmap, gToken
     SetTimer(PreviewTick, 0)
     if IsObject(gWheelGui)
         CloseColorWheel()
+    if IsObject(gSliderGui)
+        CloseSizeSlider()
     DllCall("gdiplus\GdipDeleteGraphics", "Ptr", gGraphics)
     DllCall("gdiplus\GdipDisposeImage",   "Ptr", gBitmap)
     DllCall("gdiplus\GdiplusShutdown",    "Ptr", gToken)
