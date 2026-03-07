@@ -61,10 +61,10 @@ global gSliderGui  := 0
 global gSliderHWND := 0
 
 ; Always-running preview state tracker
-global gPreviewActive := false
-global gLastX         := 0
-global gLastY         := 0
-global gFirstStroke   := true
+global gPreviewActive   := false
+global gLastX           := 0
+global gLastY           := 0
+global gFirstStroke     := true
 SetTimer(PreviewTick, 16)
 
 ; Color wheel globals
@@ -74,37 +74,45 @@ global gWheelBitmap := 0
 
 ; HOTKEYS
 
-^!LButton:: {                   ; Ctrl+Alt+LButton — draw
+; Draw/erase only when cursor is NOT over a tool window
+#HotIf !MouseOverToolWindow()
+
+^!LButton:: {               ; Ctrl+Alt+LButton — draw
     global gFirstStroke
     ForceCursors()
     MouseGetPos(&mx, &my)
     DrawCircle(mx, my, gBrushSize // 2, DrawARGB())
     gFirstStroke := false
 }
-^!RButton:: {                   ; Ctrl+Alt+RButton — erase
+
+
+^!RButton:: {               ; Ctrl+Alt+RButton — erase
     global gFirstStroke
     ForceCursors()
     MouseGetPos(&mx, &my)
     EraseCircle(mx, my, gBrushSize // 2)
     gFirstStroke := false
 }
-^!d:: {                         ; Ctrl+Alt+D — clear screen
+#HotIf
+
+
+^!d:: {                     ; Ctrl+Alt+D — clear screen
     global gGraphics
     DllCall("gdiplus\GdipGraphicsClear", "Ptr", gGraphics, "UInt", 0x00000000)
     UpdateOverlay()
 }
-^!c:: {                         ; Ctrl+Alt+C — color wheel
-    OpenColorWheel()
-}
-^!s:: {                         ; Ctrl+Alt+S — size slider
-    OpenSizeSlider()
-}
 
-; On button release, reset interpolation so next stroke starts fresh
+
+^!c:: OpenColorWheel()      ; Ctrl+Alt+C — color wheel
+
+
+^!s:: OpenSizeSlider()      ; Ctrl+Alt+S — size slider
+
+; Reset interpolation so next stroke starts fresh
 ~LButton Up:: ResetStroke()
 ~RButton Up:: ResetStroke()
 
-; Restore cursors on release
+; Restore cursors on modifier release
 ~LCtrl Up:: RestoreCursors()
 ~LAlt Up::  RestoreCursors()
 ~RCtrl Up:: RestoreCursors()
@@ -139,7 +147,9 @@ PreviewTick() {
         rDown := GetKeyState("RButton", "P")
 
         if (lDown || rDown) {
-            if gFirstStroke {
+            if MouseOverToolWindow() {
+                gFirstStroke := true
+            } else if gFirstStroke {
                 if lDown
                     DrawCircle(mx, my, gBrushSize // 2, DrawARGB())
                 else
@@ -169,7 +179,10 @@ PreviewTick() {
         } else {
             gLastX := mx
             gLastY := my
-            UpdateOverlayWithPreview(mx, my, gBrushSize // 2)
+            if !MouseOverToolWindow()
+                UpdateOverlayWithPreview(mx, my, gBrushSize // 2)
+            else
+                UpdateOverlay()
         }
 
         gPreviewActive := true
@@ -191,6 +204,18 @@ ForceCursors() {
 
 RestoreCursors() {
     DllCall("SystemParametersInfo", "UInt", 0x57, "UInt", 0, "Ptr", 0, "UInt", 0)
+}
+
+MouseOverToolWindow() {
+    global gWheelGui, gWheelHWND, gSliderGui, gSliderHWND
+    ; Use WindowFromPoint so we get the exact HWND under the cursor,
+    ; then walk up to the root window — MouseGetPos returns child controls
+    ; which won't match the parent GUI HWNDs.
+    MouseGetPos(&mx, &my)
+    hwnd := DllCall("WindowFromPoint", "Int64", mx | (my << 32), "Ptr")
+    root := DllCall("GetAncestor", "Ptr", hwnd, "UInt", 2, "Ptr")   ; GA_ROOT = 2
+    return (IsObject(gWheelGui)   && root = gWheelHWND)
+        || (IsObject(gSliderGui)  && root = gSliderHWND)
 }
 
 ; Draw / Erase — no-flush variants (used during interpolation)
@@ -362,7 +387,7 @@ OpenColorWheel() {
         "Int", winSize + sliderGap, "Int", sliderInset,
         "Int", totalW, "Int", winSize - sliderInset,
         "Int", sliderW, "Int", sliderW, "Ptr")
-    ; Close button: 22x22 square top-left
+    ; Close button: 22x22 square in top-left corner
     btnSz := 22
     hBtn  := DllCall("CreateRectRgn", "Int", 0, "Int", 0, "Int", btnSz, "Int", btnSz, "Ptr")
     hCombined := DllCall("CreateRectRgn", "Int", 0, "Int", 0, "Int", 1, "Int", 1, "Ptr")
@@ -631,7 +656,7 @@ WM_NCHITTEST_Wheel(wParam, lParam, msg, hwnd) {
         return 2   ; HTCAPTION — Windows handles drag natively
 }
 
-; ── Drag-to-pick: update color while LButton held and mouse moves ────────────
+; Drag-to-pick: update color while LButton held and mouse moves
 WM_MOUSEMOVE_Wheel(wParam, lParam, msg, hwnd) {
     global gWheelHWND, gDrawColor, gOpacity
     if (hwnd != gWheelHWND)
@@ -722,7 +747,7 @@ WheelClicked(thisHotkey) {
     MouseGetPos(&mx, &my)
     WinGetPos(&wx, &wy, &ww, &wh, gWheelHWND)
 
-    ; Click outside window — ignore, wheel stays open
+    ; Click outside window — ignore
     if (mx < wx || mx > wx+ww || my < wy || my > wy+wh)
         return
 
@@ -761,9 +786,9 @@ WheelClicked(thisHotkey) {
     if (lx >= sX1 && lx < sX1 + sliderW && ly >= sY1 && ly < sY1 + sH) {
         localY := ly - sY1
         if (localY < sCapH)
-            gOpacity := 255     ; top cap = 100%
+            gOpacity := 255                                          ; top cap = 100%
         else if (localY >= sCapH + sGradH)
-            gOpacity := 0       ; bottom cap = 0%
+            gOpacity := 0                                            ; bottom cap = 0%
         else {
             t        := 1.0 - (localY - sCapH) / (sGradH - 1)
             gOpacity := Round(t * 255)
