@@ -135,6 +135,11 @@
 #1:: {
     startOrStopScript("C:\Users\Anthon\Scripts\ahk\auto-mouse.ahk")
 }
+#2:: {
+    startOrStopScript("C:\Users\Anthon\Scripts\ahk\ScreenDraw\ScreenDraw.ahk")
+}
+
+
 
 ; Win + F12 Exit all AHK apps except the calling script
 #F12::ExitAll()
