@@ -109,13 +109,28 @@ global gWheelBitmap := 0
 SwallowLButton(*) {
     if MouseOverToolWindow() {
         Hotkey "LButton", SwallowLButton, "Off"
+        Hotkey "LButton Up", SwallowLButtonUp, "Off"
         SendEvent "{LButton Down}"
         Hotkey "LButton", SwallowLButton, "On"
+        Hotkey "LButton Up", SwallowLButtonUp, "On"
+    } else {
+        ForceCursors()
+        MouseGetPos(&mx, &my)
+        DrawCircle(mx, my, gBrushSize // 2, DrawARGB())
     }
 }
+SwallowLButtonUp(*) {
+    ; RestoreCursors()
+}
 SwallowRButton(*) {
+    if !MouseOverToolWindow() {
+        ForceCursors()
+        MouseGetPos(&mx, &my)
+        EraseCircle(mx, my, gBrushSize // 2)
+    }
 }
 SwallowRButtonUp(*) {
+    ; RestoreCursors()
 }
 
 ^!Enter:: {                 ; Ctrl+Alt+Enter — toggle always-draw mode
@@ -123,10 +138,12 @@ SwallowRButtonUp(*) {
     gAlwaysDraw := !gAlwaysDraw
     if gAlwaysDraw {
         Hotkey "LButton", SwallowLButton, "On"
+        Hotkey "LButton Up", SwallowLButtonUp, "On"
         Hotkey "RButton", SwallowRButton, "On"
         Hotkey "RButton Up", SwallowRButtonUp, "On"
     } else {
         Hotkey "LButton", SwallowLButton, "Off"
+        Hotkey "LButton Up", SwallowLButtonUp, "Off"
         Hotkey "RButton", SwallowRButton, "Off"
         Hotkey "RButton Up", SwallowRButtonUp, "Off"
     }
