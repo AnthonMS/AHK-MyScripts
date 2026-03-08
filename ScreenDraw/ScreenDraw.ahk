@@ -61,10 +61,11 @@ global gSliderGui  := 0
 global gSliderHWND := 0
 
 ; Always-running preview state tracker
-global gPreviewActive   := false
-global gLastX           := 0
-global gLastY           := 0
-global gFirstStroke     := true
+global gPreviewActive := false
+global gLastX         := 0
+global gLastY         := 0
+global gFirstStroke   := true
+global gAlwaysDraw    := false   ; toggled by Ctrl+Alt+Enter
 SetTimer(PreviewTick, 16)
 
 ; Color wheel globals
@@ -85,7 +86,6 @@ global gWheelBitmap := 0
     gFirstStroke := false
 }
 
-
 ^!RButton:: {               ; Ctrl+Alt+RButton — erase
     global gFirstStroke
     ForceCursors()
@@ -102,11 +102,37 @@ global gWheelBitmap := 0
     UpdateOverlay()
 }
 
-
 ^!c:: OpenColorWheel()      ; Ctrl+Alt+C — color wheel
 
-
 ^!s:: OpenSizeSlider()      ; Ctrl+Alt+S — size slider
+
+SwallowLButton(*) {
+    if MouseOverToolWindow() {
+        Hotkey "LButton", SwallowLButton, "Off"
+        SendEvent "{LButton Down}"
+        Hotkey "LButton", SwallowLButton, "On"
+    }
+}
+SwallowRButton(*) {
+}
+SwallowRButtonUp(*) {
+}
+
+^!Enter:: {                 ; Ctrl+Alt+Enter — toggle always-draw mode
+    global gAlwaysDraw, gHWND
+    gAlwaysDraw := !gAlwaysDraw
+    if gAlwaysDraw {
+        Hotkey "LButton", SwallowLButton, "On"
+        Hotkey "RButton", SwallowRButton, "On"
+        Hotkey "RButton Up", SwallowRButtonUp, "On"
+    } else {
+        Hotkey "LButton", SwallowLButton, "Off"
+        Hotkey "RButton", SwallowRButton, "Off"
+        Hotkey "RButton Up", SwallowRButtonUp, "Off"
+    }
+    ToolTip(gAlwaysDraw ? "Drawing ON" : "Drawing OFF")
+    SetTimer(() => ToolTip(), -1500)
+}
 
 ; Reset interpolation so next stroke starts fresh
 ~LButton Up:: ResetStroke()
@@ -137,8 +163,8 @@ PreviewARGB() {
 
 ; Preview tick — always running, checks key state itself
 PreviewTick() {
-    global gPreviewActive, gLastX, gLastY, gFirstStroke
-    bothHeld := GetKeyState("LCtrl", "P") && GetKeyState("LAlt", "P")
+    global gPreviewActive, gLastX, gLastY, gFirstStroke, gAlwaysDraw
+    bothHeld := gAlwaysDraw || (GetKeyState("LCtrl", "P") && GetKeyState("LAlt", "P"))
 
     if bothHeld {
         MouseGetPos(&mx, &my)
